@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:uuid/uuid.dart';
 
 void main() {
   runApp(const MyApp());
@@ -35,6 +36,8 @@ class MyApp extends StatelessWidget {
   }
 }
 
+var uuid = Uuid();
+
 class titleBodyPair {
   String title;
   String body = "";
@@ -42,7 +45,7 @@ class titleBodyPair {
   titleBodyPair(this.title, this.body, this.index);
   @override
   String toString() {
-    return '$title: $body';
+    return title;
   }
 }
 
@@ -71,7 +74,7 @@ class _MyHomePageState extends State<MyHomePage> {
   late final TextEditingController _titleController;
   late final TextEditingController _bodyController;
 
-  void _newshit() {
+  void _AddNew() {
     showDialog(
       context: context,
       builder: (BuildContext dialogContext) {
@@ -128,7 +131,7 @@ class _MyHomePageState extends State<MyHomePage> {
     );
   }
 
-  void _oldshit(String title, String body) {
+  void _EditOld(String title, String body) {
     _titleController.text = title;
     _bodyController.text = body;
     showDialog(
@@ -150,9 +153,9 @@ class _MyHomePageState extends State<MyHomePage> {
                 const SizedBox(height: 12),
                 TextField(
                   controller: _bodyController,
-                  maxLines: 4,
+                  maxLines: 1,
                   decoration: const InputDecoration(
-                    labelText: 'Notes',
+                    labelText: 'Password',
                     border: OutlineInputBorder(),
                   ),
                 ),
@@ -215,7 +218,7 @@ class _MyHomePageState extends State<MyHomePage> {
                         onTap: () {
                           String title = _items[index].toString();
                           String body = '';
-                          _oldshit(title, body);
+                          _EditOld(title, body);
                         },
                       );
                     },
@@ -224,7 +227,7 @@ class _MyHomePageState extends State<MyHomePage> {
         ],
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: _newshit,
+        onPressed: _AddNew,
         tooltip: 'Increment',
         child: const Icon(Icons.add),
       ), // This trailing comma makes auto-formatting nicer for build methods.
