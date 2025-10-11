@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:uuid/uuid.dart';
 
 void main() {
@@ -39,13 +40,28 @@ class MyApp extends StatelessWidget {
 var uuid = Uuid();
 
 class titleBodyPair {
+  final String id;
   String title;
-  String body = "";
-  int index;
-  titleBodyPair(this.title, this.body, this.index);
-  @override
-  String toString() {
-    return title;
+  String body;
+
+  // Yeni nesne oluşturmak için ana constructor
+  titleBodyPair(this.title, this.body) : id = uuid.v4();
+
+  // JSON'dan nesne oluşturmak için 'factory constructor'
+  factory titleBodyPair.fromJson(Map<String, dynamic> json) {
+    return titleBodyPair._internal(json['id'], json['title'], json['body']);
+  }
+
+  // Sadece dahili kullanım için özel bir constructor
+  titleBodyPair._internal(this.id, this.title, this.body);
+
+  // Nesneyi JSON'a çevirmek için metot
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'title': title,
+      'body': body,
+    };
   }
 }
 
@@ -69,7 +85,6 @@ class MyHomePage extends StatefulWidget {
 }
 
 class _MyHomePageState extends State<MyHomePage> {
-
   final List<titleBodyPair> _items = <titleBodyPair>[];
   late final TextEditingController _titleController;
   late final TextEditingController _bodyController;
@@ -117,7 +132,8 @@ class _MyHomePageState extends State<MyHomePage> {
                 String title = _titleController.text;
                 String body = _bodyController.text;
                 setState(() {
-                _items.add(titleBodyPair(title, body, _items.length));
+                  // Düzeltme: Artık ID otomatik oluşuyor, index'e gerek yok.
+                  _items.add(titleBodyPair(title, body));
                 });
                 Navigator.of(dialogContext).pop();
                 _titleController.clear();
@@ -131,9 +147,14 @@ class _MyHomePageState extends State<MyHomePage> {
     );
   }
 
-  void _EditOld(String title, String body) {
-    _titleController.text = title;
-    _bodyController.text = body;
+  // --- DÜZELTME: _EditOld metodunu ID alacak şekilde güncelledim ---
+  void _EditOld(String id) {
+    // ID'ye göre güncellenecek öğeyi bul
+    final itemToEdit = _items.firstWhere((item) => item.id == id);
+
+    _titleController.text = itemToEdit.title;
+    _bodyController.text = itemToEdit.body;
+
     showDialog(
       context: context,
       builder: (BuildContext dialogContext) {
@@ -164,12 +185,23 @@ class _MyHomePageState extends State<MyHomePage> {
           ),
           actions: <Widget>[
             TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(),
+              onPressed: () {
+                Navigator.of(dialogContext).pop();
+                _titleController.clear();
+                _bodyController.clear();
+              },
               child: const Text('Cancel'),
             ),
             ElevatedButton(
               onPressed: () {
+                // Değişiklikleri kaydet
+                setState(() {
+                  itemToEdit.title = _titleController.text;
+                  itemToEdit.body = _bodyController.text;
+                });
                 Navigator.of(dialogContext).pop();
+                _titleController.clear();
+                _bodyController.clear();
               },
               child: const Text('Save'),
             ),
@@ -194,43 +226,60 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        // TRY THIS: Try changing the color here to a specific color (to
-        // Colors.amber, perhaps?) and trigger a hot reload to see the AppBar
-        // change color while the other colors stay the same.
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        // Here we take the value from the MyHomePage object that was created by
-        // the App.build method, and use it to set our appbar title.
-        title: Text(widget.title),
-      ),
-      body: Column(
-        children: <Widget>[
-          Expanded(
-            child: _items.isEmpty
-                ? const Center(child: Text('No entries yet'))
-                : ListView.builder(
-                    itemCount: _items.length,
-                    itemBuilder: (BuildContext context, int index) {
-                      return ListTile(
-                        title: Text(_items[index].toString()),
-                        onTap: () {
-                          String title = _items[index].toString();
-                          String body = '';
-                          _EditOld(title, body);
-                        },
-                      );
-                    },
-                  ),
+  Widget build(BuildContext context) {  return Scaffold(
+    appBar: AppBar(
+      backgroundColor: Theme.of(context).colorScheme.inversePrimary,
+      title: Text(widget.title),
+    ),
+    body: ReorderableListView.builder(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      buildDefaultDragHandles: false,
+      itemCount: _items.length,
+      onReorder: (int oldIndex, int newIndex) {
+        setState(() {
+          if (oldIndex < newIndex) {
+            newIndex -= 1;
+          }
+          final titleBodyPair item = _items.removeAt(oldIndex);
+          _items.insert(newIndex, item);
+        });
+      },
+      itemBuilder: (BuildContext context, int index) {
+        final item = _items[index];
+
+        return ListTile(
+          key: ValueKey(item.id),
+          leading: ReorderableDragStartListener(
+            index: index,
+            child: const Icon(Icons.drag_handle),
           ),
-        ],
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _AddNew,
-        tooltip: 'Increment',
-        child: const Icon(Icons.add),
-      ), // This trailing comma makes auto-formatting nicer for build methods.
-    );
+          title: Text(item.title),
+          onTap: () {
+            final data = ClipboardData(text: item.body);
+            Clipboard.setData(data);
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('"${item.title}" için şifre kopyalandı!'),
+                duration: const Duration(seconds: 1),
+              ),
+            );
+          },
+          trailing: IconButton(
+            icon: const Icon(Icons.edit),
+            onPressed: () {
+              _EditOld(item.id);
+            },
+          ),
+        );
+      },
+    ),
+    floatingActionButton: FloatingActionButton(
+      onPressed: _AddNew,
+      tooltip: 'Add New',
+      child: const Icon(Icons.add),
+    ),
+  );
   }
+
+
 }
